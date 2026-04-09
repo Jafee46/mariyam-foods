@@ -30,7 +30,10 @@ import {
   Mail,
   Phone,
   Send,
-  Quote
+  Quote,
+  Package,
+  Clock,
+  History
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
@@ -168,6 +171,41 @@ const TESTIMONIALS = [
     content: "The honey-glazed nuts are a revelation. The balance of savory and sweet is perfect. They make for an incredible addition to my cheese boards.",
     avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150"
   }
+];
+
+const BLOG_POSTS = [
+  {
+    id: 1,
+    title: "The Science of Small-Batch Roasting",
+    excerpt: "Why our artisanal approach preserves more nutrients and flavor than mass-market alternatives.",
+    date: "April 5, 2026",
+    image: "https://images.unsplash.com/photo-1511067007398-7e4b90cfa4bc?auto=format&fit=crop&q=80&w=800",
+    category: "Process"
+  },
+  {
+    id: 2,
+    title: "5 Energy-Boosting Snacks for Your Workday",
+    excerpt: "Ditch the caffeine and sugar. Discover nature's own fuel for sustained mental clarity.",
+    date: "March 28, 2026",
+    image: "https://images.unsplash.com/photo-1505575967455-40e256f7377c?auto=format&fit=crop&q=80&w=800",
+    category: "Wellness"
+  },
+  {
+    id: 3,
+    title: "The Ethical Journey of a Mariyam Cashew",
+    excerpt: "Follow the path from the farm to your doorstep and meet the hands that harvest your food.",
+    date: "March 15, 2026",
+    image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=800",
+    category: "Ethics"
+  }
+];
+
+const INDIAN_CITIES = [
+  "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat", "Pune", "Jaipur", 
+  "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal", "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara",
+  "Ghaziabad", "Ludhiana", "Agra", "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi",
+  "Srinagar", "Aurangabad", "Dhanbad", "Amritsar", "Navi Mumbai", "Allahabad", "Ranchi", "Howrah", "Coimbatore", "Jabalpur",
+  "Gwalior", "Vijayawada", "Jodhpur", "Madurai", "Raipur", "Kota", "Guwahati", "Chandigarh", "Solapur", "Hubli-Dharwad"
 ];
 
 function CreativeStudio() {
@@ -310,6 +348,12 @@ export default function App() {
     pincode: ''
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderInfo, setOrderInfo] = useState<{ id: string; deliveryDate: string } | null>(null);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
+  const [trackingId, setTrackingId] = useState('');
+  const [trackingResult, setTrackingResult] = useState<any>(null);
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
 
   const addToCart = (productId: string) => {
     setCart(prev => {
@@ -338,7 +382,6 @@ export default function App() {
     setIsProcessing(true);
     
     try {
-      // Call the backend to notify the owner
       const response = await fetch('/api/notify-owner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -356,17 +399,21 @@ export default function App() {
       });
 
       if (!response.ok) throw new Error('Failed to notify owner');
-
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
+      const newOrderId = `ORD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      const deliveryDate = new Date();
+      deliveryDate.setDate(deliveryDate.getDate() + 5);
+      setOrderInfo({
+        id: newOrderId,
+        deliveryDate: deliveryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+      });
+
       setIsProcessing(false);
       setCheckoutStep('success');
       setCart([]);
     } catch (error) {
       console.error('Order error:', error);
       setIsProcessing(false);
-      // In a real app, we would show a toast or error message in the UI
     }
   };
 
@@ -395,11 +442,19 @@ export default function App() {
             <div className="hidden lg:flex items-center gap-8 text-sm font-medium tracking-widest uppercase">
               <a href="#shop" className="hover:text-[#8B735B] transition-colors">Shop</a>
               <a href="#about" className="hover:text-[#8B735B] transition-colors">Story</a>
+              <a href="#blog" className="hover:text-[#8B735B] transition-colors">Blog</a>
               <a href="#creative" className="hover:text-[#8B735B] transition-colors">Studio</a>
               <a href="#contact" className="hover:text-[#8B735B] transition-colors">Contact</a>
             </div>
           </div>
           <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setIsTrackModalOpen(true)}
+              className="hidden sm:flex items-center gap-2 text-xs font-bold uppercase tracking-widest hover:text-[#8B735B] transition-colors"
+            >
+              <History className="w-4 h-4" />
+              Track Order
+            </button>
             <button 
               onClick={() => setIsCartOpen(true)}
               className="p-2 hover:bg-[#F5F1E6] rounded-full transition-colors relative"
@@ -428,8 +483,19 @@ export default function App() {
           >
             <a href="#shop" onClick={() => setIsMenuOpen(false)}>Shop</a>
             <a href="#about" onClick={() => setIsMenuOpen(false)}>Story</a>
+            <a href="#blog" onClick={() => setIsMenuOpen(false)}>Blog</a>
             <a href="#creative" onClick={() => setIsMenuOpen(false)}>Studio</a>
             <a href="#contact" onClick={() => setIsMenuOpen(false)}>Contact</a>
+            <button 
+              onClick={() => {
+                setIsMenuOpen(false);
+                setIsTrackModalOpen(true);
+              }}
+              className="text-left flex items-center gap-2"
+            >
+              <History className="w-5 h-5" />
+              Track Order
+            </button>
           </motion.div>
         )}
       </nav>
@@ -520,13 +586,18 @@ export default function App() {
                       value={address.email}
                       onChange={(e) => setAddress({...address, email: e.target.value})}
                     />
-                    <input 
-                      type="tel" 
-                      placeholder="Phone Number"
-                      className="w-full p-4 bg-[#FDFCF8] border border-[#E8E2D2] rounded-xl focus:outline-none focus:border-[#8B735B]"
-                      value={address.phone}
-                      onChange={(e) => setAddress({...address, phone: e.target.value})}
-                    />
+                    <div className="relative">
+                      <input 
+                        type="tel" 
+                        placeholder="Phone Number"
+                        className={`w-full p-4 bg-[#FDFCF8] border rounded-xl focus:outline-none focus:border-[#8B735B] ${address.phone.length > 0 && address.phone.length !== 10 ? 'border-red-500' : 'border-[#E8E2D2]'}`}
+                        value={address.phone}
+                        onChange={(e) => setAddress({...address, phone: e.target.value})}
+                      />
+                      {address.phone.length > 0 && address.phone.length !== 10 && (
+                        <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest mt-1">Phone number must be exactly 10 digits</p>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-[#8B735B]">Shipping Address</h3>
@@ -537,14 +608,45 @@ export default function App() {
                       value={address.street}
                       onChange={(e) => setAddress({...address, street: e.target.value})}
                     />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        type="text" 
-                        placeholder="City"
-                        className="w-full p-4 bg-[#FDFCF8] border border-[#E8E2D2] rounded-xl focus:outline-none focus:border-[#8B735B]"
-                        value={address.city}
-                        onChange={(e) => setAddress({...address, city: e.target.value})}
-                      />
+                    <div className="grid grid-cols-2 gap-4 relative">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="City"
+                          className="w-full p-4 bg-[#FDFCF8] border border-[#E8E2D2] rounded-xl focus:outline-none focus:border-[#8B735B]"
+                          value={address.city}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setAddress({...address, city: val});
+                            if (val.length > 0) {
+                              const filtered = INDIAN_CITIES.filter(city => 
+                                city.toLowerCase().startsWith(val.toLowerCase())
+                              ).slice(0, 5);
+                              setCitySuggestions(filtered);
+                              setShowCitySuggestions(true);
+                            } else {
+                              setShowCitySuggestions(false);
+                            }
+                          }}
+                          onBlur={() => setTimeout(() => setShowCitySuggestions(false), 200)}
+                        />
+                        {showCitySuggestions && citySuggestions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-[#E8E2D2] rounded-xl shadow-lg overflow-hidden">
+                            {citySuggestions.map((city, idx) => (
+                              <button
+                                key={idx}
+                                className="w-full text-left px-4 py-3 text-sm hover:bg-[#F5F1E6] transition-colors border-b border-[#F5F1E6] last:border-0"
+                                onClick={() => {
+                                  setAddress({...address, city: city});
+                                  setShowCitySuggestions(false);
+                                }}
+                              >
+                                {city}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <input 
                         type="text" 
                         placeholder="Pincode"
@@ -595,18 +697,61 @@ export default function App() {
                   </motion.div>
                   <div>
                     <h3 className="text-2xl font-serif mb-2">Thank you, {address.name.split(' ')[0]}!</h3>
-                    <p className="text-[#6B5E4C]">Your order has been placed successfully. We've sent a confirmation email to {address.email}.</p>
+                    <p className="text-[#6B5E4C]">Your order has been placed successfully. The details have been sent to the owner at 6369024351.</p>
                   </div>
+                  
+                  {orderInfo && (
+                    <div className="w-full p-6 bg-[#FDFCF8] border border-[#E8E2D2] rounded-2xl text-left space-y-4">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs font-bold uppercase tracking-widest text-[#8B735B]">Order ID</p>
+                        <p className="font-mono text-sm font-bold">{orderInfo.id}</p>
+                      </div>
+                      <div className="flex gap-4 items-start">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#8B735B] shadow-sm flex-shrink-0">
+                          <Clock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest text-[#8B735B]">Estimated Delivery</p>
+                          <p className="font-medium">{orderInfo.deliveryDate}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <p className="text-sm font-medium">Order Placed</p>
+                        </div>
+                        <div className="flex items-center gap-3 opacity-40">
+                          <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                          <p className="text-sm font-medium">Processing</p>
+                        </div>
+                        <div className="flex items-center gap-3 opacity-40">
+                          <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                          <p className="text-sm font-medium">Shipped</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="w-full p-6 bg-[#FDFCF8] border border-[#E8E2D2] rounded-2xl text-left text-sm">
                     <p className="font-bold mb-2">Shipping to:</p>
                     <p className="text-[#6B5E4C]">{address.street}, {address.city} - {address.pincode}</p>
                   </div>
-                  <button 
-                    onClick={closeCart}
-                    className="w-full py-4 bg-[#2A2415] text-white rounded-full font-medium"
-                  >
-                    Continue Shopping
-                  </button>
+                  <div className="flex flex-col gap-3 w-full">
+                    <a 
+                      href={`https://wa.me/916369024351?text=${encodeURIComponent(`New Order from ${address.name}\nOrder ID: ${orderInfo?.id}\nPhone: ${address.phone}\nAddress: ${address.street}, ${address.city} - ${address.pincode}\nTotal: ₹${cartTotal.toLocaleString()}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-4 bg-[#25D366] text-white rounded-full font-medium flex items-center justify-center gap-2 hover:bg-[#128C7E] transition-all"
+                    >
+                      <span>Send Details via WhatsApp</span>
+                    </a>
+                    <button 
+                      onClick={closeCart}
+                      className="w-full py-4 bg-[#2A2415] text-white rounded-full font-medium"
+                    >
+                      Continue Shopping
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -636,7 +781,7 @@ export default function App() {
                       Back
                     </button>
                     <button 
-                      disabled={!address.name || !address.email || !address.city}
+                      disabled={!address.name || !address.email || !address.city || address.phone.length !== 10}
                       onClick={() => setCheckoutStep('payment')}
                       className="flex-[2] py-4 bg-[#2A2415] text-white rounded-full font-medium disabled:opacity-50"
                     >
@@ -888,6 +1033,57 @@ export default function App() {
         </div>
       </section>
 
+      {/* Blog Section */}
+      <section id="blog" className="py-32 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-3 text-[#8B735B] font-bold uppercase tracking-[0.3em] text-xs mb-4">
+                <Leaf className="w-4 h-4" />
+                <span>The Harvest Blog</span>
+              </div>
+              <h2 className="text-5xl font-serif leading-tight">Stories from the Soil</h2>
+              <p className="text-[#6B5E4C] mt-6 text-lg">
+                Explore our latest insights on nutrition, ethical farming, and the artisanal craft of premium food.
+              </p>
+            </div>
+            <button className="text-sm font-bold uppercase tracking-widest border-b-2 border-[#2A2415] pb-2 hover:text-[#8B735B] hover:border-[#8B735B] transition-all">
+              View All Posts
+            </button>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-12">
+            {BLOG_POSTS.map((post, i) => (
+              <motion.article 
+                key={post.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="group cursor-pointer"
+              >
+                <div className="aspect-[16/10] overflow-hidden rounded-2xl mb-6">
+                  <img 
+                    src={post.image} 
+                    alt={post.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-[#8B735B]">
+                    <span>{post.category}</span>
+                    <span className="w-1 h-1 bg-[#D4C3A3] rounded-full"></span>
+                    <span>{post.date}</span>
+                  </div>
+                  <h3 className="text-xl font-serif group-hover:text-[#8B735B] transition-colors">{post.title}</h3>
+                  <p className="text-sm text-[#6B5E4C] leading-relaxed line-clamp-2">{post.excerpt}</p>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Contact Section */}
       <section id="contact" className="py-32 bg-[#F5F1E6]">
         <div className="max-w-7xl mx-auto px-6">
@@ -996,9 +1192,9 @@ export default function App() {
               <ul className="flex flex-col gap-4 text-sm font-medium">
                 <li><a href="#" className="hover:text-[#D4C3A3] transition-colors">Home</a></li>
                 <li><a href="#shop" className="hover:text-[#D4C3A3] transition-colors">Shop All Products</a></li>
-                <li><a href="#nuts" className="hover:text-[#D4C3A3] transition-colors">Premium Nuts</a></li>
-                <li><a href="#fruits" className="hover:text-[#D4C3A3] transition-colors">Dried Fruits</a></li>
+                <li><a href="#blog" className="hover:text-[#D4C3A3] transition-colors">Harvest Blog</a></li>
                 <li><a href="#about" className="hover:text-[#D4C3A3] transition-colors">Our Story & Ethics</a></li>
+                <li><a href="#creative" className="hover:text-[#D4C3A3] transition-colors">Creative Studio</a></li>
                 <li><a href="#" className="hover:text-[#D4C3A3] transition-colors">Shipping & Returns</a></li>
               </ul>
             </div>
@@ -1035,6 +1231,110 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Track Order Modal */}
+      <AnimatePresence>
+        {isTrackModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsTrackModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-[#F5F1E6] flex items-center justify-between bg-[#FDFCF8]">
+                <h2 className="text-2xl font-serif">Track Your Harvest</h2>
+                <button onClick={() => setIsTrackModalOpen(false)} className="p-2 hover:bg-[#F5F1E6] rounded-full transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="space-y-4">
+                  <label className="text-xs font-bold uppercase tracking-widest text-[#8B735B]">Order ID</label>
+                  <div className="flex gap-4">
+                    <input 
+                      type="text" 
+                      placeholder="e.g., ORD-A1B2C3D"
+                      value={trackingId}
+                      onChange={(e) => setTrackingId(e.target.value)}
+                      className="flex-1 p-4 bg-[#FDFCF8] border border-[#E8E2D2] rounded-xl focus:outline-none focus:border-[#8B735B] font-mono"
+                    />
+                    <button 
+                      onClick={() => {
+                        if (trackingId.trim()) {
+                          // Mock tracking result
+                          setTrackingResult({
+                            status: 'Processing',
+                            deliveryDate: 'April 14, 2026',
+                            location: 'Golden Valley Distribution Center'
+                          });
+                        }
+                      }}
+                      className="px-8 bg-[#2A2415] text-white rounded-xl font-bold uppercase tracking-widest hover:bg-[#3D3522] transition-all"
+                    >
+                      Track
+                    </button>
+                  </div>
+                </div>
+
+                {trackingResult && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-6 bg-[#FDFCF8] border border-[#E8E2D2] rounded-2xl space-y-6"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-[#8B735B] mb-1">Status</p>
+                        <p className="text-xl font-serif text-green-600">{trackingResult.status}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold uppercase tracking-widest text-[#8B735B] mb-1">Estimated Delivery</p>
+                        <p className="font-medium">{trackingResult.deliveryDate}</p>
+                      </div>
+                    </div>
+
+                    <div className="relative pt-8 pb-4">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-[#E8E2D2] rounded-full"></div>
+                      <div className="absolute top-0 left-0 w-1/2 h-1 bg-[#8B735B] rounded-full"></div>
+                      <div className="flex justify-between mt-4">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-3 h-3 bg-[#8B735B] rounded-full"></div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Placed</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-3 h-3 bg-[#8B735B] rounded-full"></div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Processing</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2 opacity-30">
+                          <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Shipped</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2 opacity-30">
+                          <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Delivered</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 items-center pt-4 border-t border-[#E8E2D2]">
+                      <MapPin className="w-5 h-5 text-[#8B735B]" />
+                      <p className="text-sm text-[#6B5E4C]">{trackingResult.location}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
